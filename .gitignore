@@ -1,0 +1,5 @@
+.idea
+main
+main.o
+output.tga
+tgaimage.o
