@@ -33,7 +33,6 @@ void line(int x0 , int y0 , int x1 , int y1 , TGAImage& img , TGAColor color)
    }
 }
 
-
 void line2(int x0, int y0, int x1, int y1, TGAImage &image, TGAColor color) {
     bool steep = false;
     if (std::abs(x0-x1)<std::abs(y0-y1)) {
@@ -68,16 +67,32 @@ void line2(int x0, int y0, int x1, int y1, TGAImage &image, TGAColor color) {
 /// float derror = std::abs(dy/float(dx));  每次移动一个像素，所产生的y方向的像素改变长度
 ///                 derror > 0.5 半个像素的时候 ，则表示y需要+1了
 
+void triangle(Vec2i& t0 , Vec2i& t1 , Vec2i& t2 , TGAImage& image , TGAColor color)
+{
+    line(t0.x , t0.y , t1.x , t1.y , image , color);    /// 三角形轮廓绘制
+    line(t1.x , t1.y , t2.x , t2.y , image , color);
+    line(t2.x , t2.y , t0.x , t0.y , image , color);
+
+    int min_y = t0.y;
+    if(t1.y < min_y)  min_y = t1.y;
+    if(t2.y < min_y)  min_y = t2.y;
+
+    int max_y = t0.y;
+    if(t1.y > max_y) max_y = t1.y;
+    if(t2.y > max_y) max_y = t2.y;
+
+    for(int btn = min_y ; btn < max_y ; ++btn)
+    {
+
+    }
+
+
+
+}
+
 
 int main(int argc, char** argv) {
 	TGAImage image(width, height, TGAImage::RGB);
-	//image.set(10, 10, red);
-    //line(0,0,100,100,image,red);
-    //line(13,20,80,40,image,white);
-    //line(20,13,40,80,image,red);       /// steep 问题
-    //line(80, 40, 13, 20, image, red);  ///左上 右下颠倒
-
-
 
 
     Model m(argv[1]);       /// 读取模型文件
@@ -91,22 +106,16 @@ int main(int argc, char** argv) {
             int x1 = (v1.x + 1.) * width / 2.;
             int y0 = (v0.y + 1.) * height / 2.;
             int y1 = (v1.y + 1.) * height / 2.;
-            line2(x0 , y0 ,x1, y1 , image, white);
+            line(x0 , y0 ,x1, y1 , image, white);
         }
     }
 
-
-    std::string stest("235/215/235 363/347/363 467/458/467");
-    std::istringstream iss(stest);      /// iss 就可以自动切断
-    int index;
-    int trash2;
-    char trash;
-    std::cout << "HWEE" << std::endl;
-    while( iss >> index >> trash >> trash2 >> trash >> trash2 )
-    {
-        std::cout << "index: " << index << std::endl;
-    }
-    std::cout << "WOC" << std::endl;
+    Vec2i t0[3] = { Vec2i(10,70) , Vec2i(50,160) , Vec2i(70,80)};
+    Vec2i t1[3] = { Vec2i(180,50) , Vec2i(150,1) , Vec2i(70,180)};
+    Vec2i t2[3] = { Vec2i(180,150) , Vec2i(120,160) , Vec2i(130,180)};
+    triangle(t0[0] , t0[1] , t0[2] , image , red);
+    triangle(t1[0] , t1[1] , t1[2] , image , red);
+    triangle(t2[0] , t2[1] , t2[2] , image , red);
 
 
     image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
