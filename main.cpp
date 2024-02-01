@@ -10,6 +10,7 @@ const int height = 800;
 
 void line(int x0 , int y0 , int x1 , int y1 , TGAImage& img , TGAColor color)
 {
+    ///斜率太大、绘制线条会断开
     bool steep = false;
     if( std::abs(x0-x1) < std::abs(y0-y1) ){
         std::swap(x0 ,y0);
@@ -27,7 +28,7 @@ void line(int x0 , int y0 , int x1 , int y1 , TGAImage& img , TGAColor color)
         float t = (x-x0) / (float)(x1 - x0);
         int y = y1 * t + (1-t)*y0;
         if(steep)
-            img.set(y, x, color);
+            img.set(y, x, color);       ///这比opencv强多了很骚的产生.tga的方法
         else
             img.set(x,y,color);
    }
@@ -69,22 +70,29 @@ void line2(int x0, int y0, int x1, int y1, TGAImage &image, TGAColor color) {
 
 void triangle(Vec2i& t0 , Vec2i& t1 , Vec2i& t2 , TGAImage& image , TGAColor color)
 {
-    line(t0.x , t0.y , t1.x , t1.y , image , color);    /// 三角形轮廓绘制
-    line(t1.x , t1.y , t2.x , t2.y , image , color);
-    line(t2.x , t2.y , t0.x , t0.y , image , color);
-
-    int min_y = t0.y;
-    if(t1.y < min_y)  min_y = t1.y;
-    if(t2.y < min_y)  min_y = t2.y;
-
-    int max_y = t0.y;
-    if(t1.y > max_y) max_y = t1.y;
-    if(t2.y > max_y) max_y = t2.y;
-
-    for(int btn = min_y ; btn < max_y ; ++btn)
-    {
-
+    if (t0.y==t1.y && t0.y==t2.y) return; // I dont care about degenerate triangles
+    // sort the vertices, t0, t1, t2 lower?to?upper (bubblesort yay!)
+    if (t0.y>t1.y) std::swap(t0, t1);
+    if (t0.y>t2.y) std::swap(t0, t2);
+    if (t1.y>t2.y) std::swap(t1, t2);
+    int total_height = t2.y-t0.y;
+    for (int i=0; i<total_height; i++) {
+        bool second_half = i>t1.y-t0.y || t1.y==t0.y;
+        int segment_height = second_half ? t2.y-t1.y : t1.y-t0.y;
+        float alpha = (float)i/total_height;
+        float beta  = (float)(i-(second_half ? t1.y-t0.y : 0))/segment_height; // be careful: with above conditions no division by zero here
+        Vec2i A =               t0 + (t2-t0)*alpha;
+        Vec2i B = second_half ? t1 + (t2-t1)*beta : t0 + (t1-t0)*beta;
+        if (A.x>B.x) std::swap(A, B);
+        for (int j=A.x; j<=B.x; j++) {
+            image.set(j, t0.y+i, color); // attention, due to int casts t0.y+i != A.y
+        }
     }
+}
+
+Vec3f barycentric(Vec2i* pts , Vec2i P)
+{
+    //Vec3f u = Vec3f(pts[2][0]-pts[0][0], pts[1][0]-pts[0][0], pts[0][0]-P[0])^Vec3f(pts[2][1]-pts[0][1], pts[1][1]-pts[0][1], pts[0][1]-P[1]);
 
 
 
@@ -117,6 +125,7 @@ int main(int argc, char** argv) {
     triangle(t1[0] , t1[1] , t1[2] , image , red);
     triangle(t2[0] , t2[1] , t2[2] , image , red);
 
+    Vec2i pts[3] = {};
 
     image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
     image.write_tga_file("output.tga");
