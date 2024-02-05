@@ -14,7 +14,7 @@
 class Model {
 
 private:
-    std::vector<Vec3f> verts_;              /// 每个vertex  xyz
+    std::vector<Vec3f> verts_;              /// 每个vertex  xyz [世界坐标--- 范围-1-1]
     std::vector<std::vector<int> > faces_;  /// 构成一个三角形的index/// verts的下标
 
 public:

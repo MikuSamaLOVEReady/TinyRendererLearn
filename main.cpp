@@ -8,6 +8,8 @@ const TGAColor red   = TGAColor(255, 0,   0,   255);
 const int width  = 800;
 const int height = 800;
 
+Vec3f  light_dir(0,0,-1);  /// Light_Dir
+
 void line(int x0 , int y0 , int x1 , int y1 , TGAImage& img , TGAColor color)
 {
     ///斜率太大、绘制线条会断开
@@ -63,11 +65,13 @@ void line2(int x0, int y0, int x1, int y1, TGAImage &image, TGAColor color) {
         }
     }
 }
+
+
 /// int dx = x1-x0;
 /// int dy = y1-y0;
 /// float derror = std::abs(dy/float(dx));  每次移动一个像素，所产生的y方向的像素改变长度
 ///                 derror > 0.5 半个像素的时候 ，则表示y需要+1了
-
+/// 传统做法！ hard！
 void triangle(Vec2i& t0 , Vec2i& t1 , Vec2i& t2 , TGAImage& image , TGAColor color)
 {
     if (t0.y==t1.y && t0.y==t2.y) return; // I dont care about degenerate triangles
@@ -90,42 +94,83 @@ void triangle(Vec2i& t0 , Vec2i& t1 , Vec2i& t2 , TGAImage& image , TGAColor col
     }
 }
 
-Vec3f barycentric(Vec2i* pts , Vec2i P)
+/// 相比-传统更快捷、 利用cross product的结果来验证、记住要归一化 ux uy uz
+Vec3f barycentric(Vec2i* pts , Vec2i& P)
 {
-    //Vec3f u = Vec3f(pts[2][0]-pts[0][0], pts[1][0]-pts[0][0], pts[0][0]-P[0])^Vec3f(pts[2][1]-pts[0][1], pts[1][1]-pts[0][1], pts[0][1]-P[1]);
-
-
-
+    Vec3f u = Vec3f(pts[2].x-pts[0].x, pts[1].x-pts[0].x, pts[0].x-P.x)
+            ^ Vec3f(pts[2].y-pts[0].y, pts[1].y-pts[0].y, pts[0].y-P.y);
+    /// 经验model而已
+    if( std::abs(u.z) < 1 ) return Vec3f(-1, 1, 1);
+    /// 归一化 uz = 1
+    return Vec3f(1.f - (u.x + u.y)/u.z  , u.y/u.z , u.x/u.z  );
 }
 
+void triangle_02(Vec2i* pts , TGAImage& image , TGAColor color) {
+    /// 初始化bbox
+    Vec2i bboxmin(image.get_width() - 1, image.get_height() - 1);
+    Vec2i bboxmax(0, 0);
+    Vec2i clam(image.get_width() - 1, image.get_height() - 1);
+
+    /// 遍历所有的三个顶点，缩小bbox的范围
+    for (int i = 0; i < 3; i++)
+    {
+       bboxmin.x = std::max( 0 , std::min(pts[i].x , bboxmin.x));
+       bboxmin.y = std::max( 0 , std::min(pts[i].y , bboxmin.y));
+       bboxmax.x = std::min( clam.x , std::max(pts[i].x , bboxmax.x));
+       bboxmax.y = std::min( clam.y , std::max(pts[i].y , bboxmax.y));
+    }
+    std::cout << "bbox mix" <<   bboxmin.x << " " <<  bboxmin.y << std::endl;
+    std::cout << "bbox max" <<   bboxmax.x << " " <<  bboxmax.y << std::endl;
+
+    ///在Box中绘制
+    Vec2i P;
+    int count = 0;
+    int all_points = 0;
+    for( P.x = bboxmin.x ; P.x <= bboxmax.x ; ++P.x){
+        for( P.y = bboxmin.y ; P.y <= bboxmax.y ; ++P.y)
+        {
+           Vec3f res = barycentric( pts , P);
+           if(res.x <0 || res.y <0 || res.z < 0 ) {
+               count++;
+               continue;
+           }
+            image.set(P.x , P.y , color);
+        }
+    }
+}
+
+void Render_ColorFace( Model& m , TGAImage& img)
+{
+    for(int i=0 ; i<m.nfaces() ; ++i)
+    {
+         std::vector<int> face = m.face(i);
+         Vec2i screen_coords[3];
+         Vec3f world_coords[3];
+         for(int j=0 ; j<3 ; j++)
+         {
+             Vec3f world_pos = m.vert(face[j]); /// world_pos --->【 -1 <---> 1 】
+             screen_coords[j] = Vec2i((world_pos.x + 1.) * width / 2., (world_pos.y + 1) * height/2.);
+             world_coords[j] = world_pos;
+         }
+        Vec3f  n = (world_coords[2] - world_coords[0]) ^ (world_coords[1] - world_coords[0]); /// 这个法线的方向 叉乘与 存储的index顺序有关
+        n.normalize();
+        float intensity = n * light_dir;
+        if(intensity > 0){
+            /// 线性光色差值
+            triangle_02( screen_coords , img , TGAColor(intensity*255, intensity*255, intensity*255, 255));
+        }
+    }
+}
 
 int main(int argc, char** argv) {
 	TGAImage image(width, height, TGAImage::RGB);
 
+    Vec2i pts[3] = {Vec2i(10,10) , Vec2i(100,30) , Vec2i (190 , 160)};
+    //triangle_02(pts, image , red);
 
-    Model m(argv[1]);       /// 读取模型文件
-    for(int i=0  ; i<m.nfaces() ; ++i){
-        std::vector<int> face = m.face(i);
-        for(int j =0 ; j<3 ;j++)
-        {
-            Vec3f v0 = m.vert(face[j]);
-            Vec3f v1 = m.vert(face[(j+1) % 3] );
-            int x0 = (v0.x + 1.) * width / 2.;
-            int x1 = (v1.x + 1.) * width / 2.;
-            int y0 = (v0.y + 1.) * height / 2.;
-            int y1 = (v1.y + 1.) * height / 2.;
-            line(x0 , y0 ,x1, y1 , image, white);
-        }
-    }
+    Model m(argv[1]);
+    Render_ColorFace(m , image);
 
-    Vec2i t0[3] = { Vec2i(10,70) , Vec2i(50,160) , Vec2i(70,80)};
-    Vec2i t1[3] = { Vec2i(180,50) , Vec2i(150,1) , Vec2i(70,180)};
-    Vec2i t2[3] = { Vec2i(180,150) , Vec2i(120,160) , Vec2i(130,180)};
-    triangle(t0[0] , t0[1] , t0[2] , image , red);
-    triangle(t1[0] , t1[1] , t1[2] , image , red);
-    triangle(t2[0] , t2[1] , t2[2] , image , red);
-
-    Vec2i pts[3] = {};
 
     image.flip_vertically(); // i want to have the origin at the left bottom corner of the image
     image.write_tga_file("output.tga");
